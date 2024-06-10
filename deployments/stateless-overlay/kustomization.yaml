@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - path: minio_patch.yaml
+    target:
+      kind: StatefulSet
+      name: minio
+  - path: postgres_patch.yaml
+    target:
+      kind: StatefulSet
+      name: postgres
+  - path: rabbitmq_patch.yaml
+    target:
+      kind: StatefulSet
+      name: rabbitmq

@@ -1,0 +1,18 @@
+# vscode-kubernetes-tools: exclude
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  template:
+    spec:
+      containers:
+      - name: server
+        volumeMounts:
+        - name: minio-data
+          $patch: delete
+        - name: minio-data-dev
+          mountPath: /data
+      volumes:
+      - name: minio-data-dev
+        emptyDir: {}

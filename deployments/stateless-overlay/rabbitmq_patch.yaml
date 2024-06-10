@@ -1,0 +1,20 @@
+# vscode-kubernetes-tools: exclude
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+spec:
+  template:
+    spec:
+      containers:
+      - name: mq
+        volumeMounts:
+        - name: rabbitmq-data
+          $patch: delete
+        - name: rabbitmq-data-dev
+          mountPath: /var/lib/rabbitmq
+        - name: rabbitmq-config # why is this deleted by the patch?
+          mountPath: /config/rabbitmq
+      volumes:
+      - name: rabbitmq-data-dev
+        emptyDir: {}

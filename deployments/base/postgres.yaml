@@ -1,0 +1,63 @@
+# https://www.postgresql.org/docs/current/app-psql.html
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: db
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: postgres-headless
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: db
+        image: postgres:latest
+        env:
+          - name: POSTGRES_USER
+            value: postgresuser
+          - name: POSTGRES_PASSWORD
+            value: postgrespassword
+        ports:
+          - containerPort: 5432
+            name: db
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgres/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi

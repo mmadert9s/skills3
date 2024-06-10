@@ -1,0 +1,18 @@
+# vscode-kubernetes-tools: exclude
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  template:
+    spec:
+      containers:
+      - name: db
+        volumeMounts:
+        - name: postgres-data
+          $patch: delete
+        - name: postgres-data-dev
+          mountPath: /var/lib/postgres/data
+      volumes:
+      - name: postgres-data-dev
+        emptyDir: {}

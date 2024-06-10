@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+    - port: 5672
+      name: amqp
+      targetPort: amqp
+    - port: 15672
+      name: console
+      targetPort: console
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: rabbitmq
+  ports:
+    - port: 5672
+      name: amqp
+      targetPort: amqp
+    - port: 25672
+      name: clustering
+      targetPort: clustering
+    - port: 4369
+      name: peer-discovery
+      targetPort: peer-discovery
+    - port: 35197
+      name: clustering2
+      targetPort: clustering2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    matchLabels:
+      app: rabbitmq
+  serviceName: rabbitmq-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: mq
+        image: rabbitmq:management # management image contains tools for clustering
+        env:
+          - name: RABBITMQ_CONFIG_FILE
+            value: /config/rabbitmq/rabbitmq.conf
+          - name: RABBITMQ_ERLANG_COOKIE
+            value: WIWVHCDTCIUAWANLMQAW
+          - name: RABBITMQ_DEFAULT_USER
+            value: rabbitmquser
+          - name: RABBITMQ_DEFAULT_PASS
+            value: rabbitmqpassword
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+        ports:
+          - containerPort: 5672
+            name: amqp
+          - containerPort: 15672
+            name: console
+          - containerPort: 25672
+            name: clustering
+          - containerPort: 4369
+            name: peer-discovery
+          - containerPort: 35197
+            name: clustering2
+
+        # readinessProbe:
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 10
+        #   exec:
+        #     command:
+        #       - sh
+        #       - -ec
+        #       - rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms
+
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        - name: rabbitmq-config
+          mountPath: /config/rabbitmq
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 256Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+data:
+  enabled_plugins: |
+    [rabbitmq_federation, rabbitmq_management]
+  rabbitmq.conf: |
+    # log.file.level = debug
+    loopback_users.guest = false
+    listeners.tcp.default = 5672
+
+    cluster_formation.peer_discovery_backend = rabbit_peer_discovery_classic_config
+    cluster_formation.classic_config.nodes.1 = rabbit@rabbitmq-0.rabbitmq-headless.$(NAMESPACE).svc.cluster.local
+    cluster_formation.classic_config.nodes.2 = rabbit@rabbitmq-1.rabbitmq-headless.$(NAMESPACE).svc.cluster.local
+    cluster_formation.classic_config.nodes.3 = rabbit@rabbitmq-2.rabbitmq-headless.$(NAMESPACE).svc.cluster.local
