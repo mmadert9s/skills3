@@ -11,11 +11,14 @@
         <script>
             function uploadFile() {
                 var file = document.getElementById("fileinput").files[0];
+                var filename = file.name;
+
                 var reader = new FileReader();
                 reader.onload = function(e) {
                     var xhr = new XMLHttpRequest();
                     xhr.open('POST', '/upload', true);
                     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                    xhr.setRequestHeader('Content-Disposition', `attachment; filename="${filename}"`)
                     xhr.send(e.target.result);
                 }
 
