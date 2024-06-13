@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -9,16 +9,23 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func publishObjectUploadedMessage(conn *amqp.Connection, objectUrl string, lastInsertId int) error {
+type UploadMessage struct {
+	Id        int    `json:"id"`
+	ObjectUrl string `json:"url"`
+}
+
+func publishObjectUploadedMessage(ch *amqp.Channel, objectUrl string, lastInsertId int) error {
 	log.Printf("Publishing message for object %s to mq...", objectUrl)
 
-	ch, err := conn.Channel()
+	message := UploadMessage{
+		lastInsertId,
+		objectUrl,
+	}
+
+	messageBody, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
-	defer ch.Close()
-
-	messageBody := fmt.Sprintf(`{"url":"%s","id":"%d"}`, objectUrl, lastInsertId)
 
 	msg := amqp.Publishing{
 		DeliveryMode: amqp.Persistent,
@@ -27,10 +34,7 @@ func publishObjectUploadedMessage(conn *amqp.Connection, objectUrl string, lastI
 		Body:         []byte(messageBody),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	err = ch.PublishWithContext(ctx, exchangeName, queueName, true, false, msg)
+	err = ch.Publish(exchangeName, queueName, true, false, msg)
 	if err != nil {
 		return err
 	}
@@ -40,7 +44,7 @@ func publishObjectUploadedMessage(conn *amqp.Connection, objectUrl string, lastI
 	return nil
 }
 
-func initMQ() *amqp.Connection {
+func initMQ() (*amqp.Connection, *amqp.Channel) {
 	log.Print("Initializing mq...")
 
 	var err error
@@ -48,15 +52,13 @@ func initMQ() *amqp.Connection {
 	if err != nil {
 		log.Fatalf("unexpected error while opening connection to mq: %v", err)
 	}
-
 	log.Print("Opened mq connection")
 
-	// Open a channel to create the exchange, queue, and binding
 	ch, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("unexpected error while opening channel to mq: %v", err)
 	}
-	defer ch.Close()
+	log.Print("Opened mq channel")
 
 	err = ch.ExchangeDeclare(
 		exchangeName,
@@ -99,5 +101,5 @@ func initMQ() *amqp.Connection {
 
 	log.Print("Initialized mq")
 
-	return conn
+	return conn, ch
 }

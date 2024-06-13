@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net/url"
 
 	"github.com/google/uuid"
-	"github.com/minio/minio-go"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func uploadToS3(mc *minio.Client, filename string, body io.Reader, size int64) (string, error) {
@@ -18,7 +20,7 @@ func uploadToS3(mc *minio.Client, filename string, body io.Reader, size int64) (
 		filename = fmt.Sprintf("uploaded-%s", uuid)
 	}
 
-	n, err := mc.PutObject(bucketName, filename, body, size, minio.PutObjectOptions{})
+	info, err := mc.PutObject(context.Background(), bucketName, filename, body, size, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -26,31 +28,35 @@ func uploadToS3(mc *minio.Client, filename string, body io.Reader, size int64) (
 	objectUrl := url.URL{
 		Scheme: "http",
 		Host:   minioEndpoint,
-		Path:   "/" + bucketName + "/" + filename,
+		Path:   "/" + info.Bucket + "/" + info.Key,
 	}
 
-	log.Printf("Wrote %d bytes uploading object %v", n, filename)
+	log.Printf("Uploaded object %v", info.Key)
 	return objectUrl.String(), nil
 }
 
 func initMinio() *minio.Client {
 	log.Print("Initializing minio...")
 
-	minioClient, err := minio.New(minioEndpoint, accessKey, secretKey, false)
+	minioClient, err := minio.New(minioEndpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: false,
+	})
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	log.Print("Created minio client")
 
-	bucketExists, err := minioClient.BucketExists(bucketName)
+	bucketExists, err := minioClient.BucketExists(context.Background(), bucketName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if !bucketExists {
 		log.Print("Bucket doesn't exist, creating...")
-		err = minioClient.MakeBucket(bucketName, "")
+		err = minioClient.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{})
 		if err != nil {
 			log.Fatal(err)
 		}

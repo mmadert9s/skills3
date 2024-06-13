@@ -43,14 +43,13 @@ func initDb() *sql.DB {
 
 	log.Print("Opened db connection")
 
-	quotedTableName := pg.QuoteIdentifier(tableName)
 	query := `SELECT EXISTS(
 				SELECT FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name = $1
 	);`
 
 	var exists bool
-	err = dbConnection.QueryRow(query, quotedTableName).Scan(&exists)
+	err = dbConnection.QueryRow(query, tableName).Scan(&exists)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,6 +57,7 @@ func initDb() *sql.DB {
 	if !exists {
 		log.Print("table doesn't exist, creating...")
 
+		quotedTableName := pg.QuoteIdentifier(tableName)
 		query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (
 			id SERIAL PRIMARY KEY,
 			file_name TEXT,

@@ -6,7 +6,8 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/minio/minio-go"
+	"github.com/minio/minio-go/v7"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"database/sql"
@@ -37,17 +38,19 @@ func main() {
 	var minioClient *minio.Client
 	var dbConnection *sql.DB
 	var mqConnection *amqp.Connection
+	var mqChannel *amqp.Channel
 
 	minioClient = initMinio()
 
 	dbConnection = initDb()
 	defer dbConnection.Close()
 
-	mqConnection = initMQ()
+	mqConnection, mqChannel = initMQ()
+	defer mqChannel.Close()
 	defer mqConnection.Close()
 
 	http.HandleFunc("POST /upload", func(w http.ResponseWriter, r *http.Request) {
-		fileUpload(w, r, minioClient, dbConnection, mqConnection)
+		fileUpload(w, r, minioClient, dbConnection, mqChannel)
 	})
 
 	http.HandleFunc("GET /test", func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +60,7 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func fileUpload(w http.ResponseWriter, req *http.Request, mc *minio.Client, dbConn *sql.DB, mqConn *amqp.Connection) {
+func fileUpload(w http.ResponseWriter, req *http.Request, mc *minio.Client, dbConn *sql.DB, mqChannel *amqp.Channel) {
 	log.Print("fileUpload")
 
 	if req.Method != http.MethodPost {
@@ -85,7 +88,7 @@ func fileUpload(w http.ResponseWriter, req *http.Request, mc *minio.Client, dbCo
 		return
 	}
 
-	err = publishObjectUploadedMessage(mqConn, objectUrl, lastInsertId)
+	err = publishObjectUploadedMessage(mqChannel, objectUrl, lastInsertId)
 	if err != nil {
 		log.Printf("unexpected error while publishing to mq: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

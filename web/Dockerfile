@@ -1,4 +1,4 @@
-FROM golang:1.22
+FROM golang:1.22 as build
 
 WORKDIR /usr/src/app
 
@@ -8,6 +8,11 @@ RUN go mod download && go mod verify
 
 COPY . .
 
-RUN go build -v -o /usr/local/bin/web ./...
+RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/web ./...
+
+FROM alpine:latest
+
+COPY --from=build /usr/local/bin/web /usr/local/bin/web
+COPY "index.html" "index.html"
 
 CMD ["web"]
