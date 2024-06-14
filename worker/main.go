@@ -92,6 +92,9 @@ func processMessage(d amqp.Delivery, minioClient *minio.Client) {
 		return
 	}
 
+	// cleanup
+	defer os.RemoveAll(basePath)
+
 	inPath := path.Join(basePath, objectKey)
 	localFile, err := os.Create(inPath)
 	if err != nil {
@@ -130,8 +133,7 @@ func processMessage(d amqp.Delivery, minioClient *minio.Client) {
 		"--classes", "/workdir/yolov3.txt",
 	)
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
+	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 
 	err = cmd.Run()
@@ -140,9 +142,9 @@ func processMessage(d amqp.Delivery, minioClient *minio.Client) {
 		log.Print("stderr:", stderrBuf.String())
 		rejectMessage(d)
 		return
-	} else {
-		log.Print("Python execution ok")
 	}
+
+	log.Print("Python execution ok")
 
 	outFile, err := os.Open(outPath)
 	if err != nil {
@@ -176,9 +178,6 @@ func processMessage(d amqp.Delivery, minioClient *minio.Client) {
 	}
 
 	d.Ack(false)
-
-	// cleanup
-	os.RemoveAll(basePath)
 
 	log.Printf("Done processing %s", objectKey)
 }
