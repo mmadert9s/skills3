@@ -5,3 +5,4 @@ resources:
   - postgres.yaml
   - rabbitmq.yaml
   - web.yaml
+  - worker.yaml
